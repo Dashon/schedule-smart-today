@@ -1,19 +1,24 @@
 
-// Mock data for the AI scheduler
-// In a real application, this would connect to an API
-
 import { Task } from '../components/TaskList';
 import { ScheduledTask } from '../components/Timeline';
+import { generateScheduleWithOpenAI, delay } from './openaiService';
 
 export interface ScheduleResult {
   scheduledTasks: ScheduledTask[];
   explanation: string;
 }
 
-// Function to simulate AI processing delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 export const generateSchedule = async (tasks: Task[]): Promise<ScheduleResult> => {
+  try {
+    return await generateScheduleWithOpenAI(tasks);
+  } catch (error) {
+    console.warn("Failed to use OpenAI API, falling back to mock implementation:", error);
+    return generateMockSchedule(tasks);
+  }
+};
+
+// Fallback mock implementation in case the OpenAI API call fails
+const generateMockSchedule = async (tasks: Task[]): Promise<ScheduleResult> => {
   // Simulate API call delay
   await delay(2000);
   
