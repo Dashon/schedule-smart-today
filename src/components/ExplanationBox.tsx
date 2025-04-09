@@ -12,16 +12,20 @@ const ExplanationBox = ({ explanation }: ExplanationBoxProps) => {
   const paragraphs = explanation.split('\n\n');
 
   return (
-    <div className="bg-gray-50 border rounded-lg p-6 shadow-sm">
+    <div className="bg-white border rounded-lg p-6 shadow-sm">
       <div className="flex items-start gap-4">
-        <div className="mt-1 text-planner-blue">
-          <Info className="h-6 w-6" />
+        <div className="mt-1">
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <Info className="h-5 w-5 text-blue-600" />
+          </div>
         </div>
-        <div>
-          <h3 className="font-medium text-xl mb-3">Schedule Rationale</h3>
-          <div className="text-muted-foreground space-y-4">
+        <div className="flex-1">
+          <h3 className="font-bold text-xl mb-4">Schedule Rationale</h3>
+          <div className="text-gray-600 space-y-4">
             {paragraphs.map((paragraph, index) => (
-              <p key={index}>{paragraph}</p>
+              <p key={index} className={index % 2 === 0 ? "bg-blue-50 p-3 rounded-md" : ""}>
+                {paragraph}
+              </p>
             ))}
           </div>
         </div>

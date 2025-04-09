@@ -33,10 +33,16 @@ export const generateScheduleWithOpenAI = async (tasks: Task[]): Promise<Schedul
         messages: [
           {
             role: "system",
-            content: "You are an AI assistant that helps people optimize their daily schedules. " +
-                     "Create a well-organized daily schedule based on the tasks provided, accounting for task durations and logical flow. " +
-                     "Detect any time specifications mentioned in tasks (e.g., meetings at specific times) and schedule accordingly. " +
-                     "For tasks without specific times, estimate a reasonable duration and schedule them at appropriate times."
+            content: `You are an AI assistant that helps people optimize their daily schedules.
+            
+IMPORTANT: You MUST adhere to any specific time constraints mentioned in the tasks. For example:
+- "Meeting at 2 PM" means this task MUST be scheduled at 2:00 PM, not any other time
+- "Pick up kids at 3 PM" means this task MUST be scheduled at 3:00 PM, not any other time
+- "Doctor's appointment at 1:30 PM" means this task MUST be scheduled at 1:30 PM, not any other time
+
+After identifying tasks with specific times, arrange other flexible tasks around these fixed commitments.
+For tasks without specific times, estimate a reasonable duration and schedule them at appropriate times.
+Do not schedule tasks to overlap with each other.`
           },
           {
             role: "user",

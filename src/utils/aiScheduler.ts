@@ -17,20 +17,110 @@ export const generateSchedule = async (tasks: Task[]): Promise<ScheduleResult> =
   }
 };
 
+// Helper function to extract time from task description
+const extractTimeFromDescription = (description: string): {time: string, hour: number, minute: number} | null => {
+  // Check for patterns like "at 2 PM", "at 3:30 PM", etc.
+  const atTimeRegex = /at (\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)/i;
+  const atTimeMatch = description.match(atTimeRegex);
+  
+  if (atTimeMatch) {
+    const hour = parseInt(atTimeMatch[1]);
+    const minute = atTimeMatch[2] ? parseInt(atTimeMatch[2]) : 0;
+    const period = atTimeMatch[3].toUpperCase();
+    
+    const hourIn24 = period === "PM" && hour < 12 ? hour + 12 : hour;
+    const hourIn12 = hourIn24 > 12 ? hourIn24 - 12 : (hourIn24 === 0 ? 12 : hourIn24);
+    const formattedMinute = minute.toString().padStart(2, '0');
+    const formattedTime = `${hourIn12}:${formattedMinute} ${period}`;
+    
+    return {
+      time: formattedTime,
+      hour: hourIn24,
+      minute: minute
+    };
+  }
+  
+  return null;
+}
+
 // Fallback mock implementation in case the OpenAI API call fails
 const generateMockSchedule = async (tasks: Task[]): Promise<ScheduleResult> => {
   // Simulate API call delay
   await delay(2000);
   
-  // For the MVP, we'll create a simple algorithm that spreads tasks throughout the day
-  // starting from 8 AM with reasonable gaps
+  // First, extract tasks with specific times
+  const tasksWithTimes: { task: Task; time: { time: string; hour: number; minute: number } }[] = [];
+  const flexibleTasks: Task[] = [];
+  
+  tasks.forEach(task => {
+    const timeInfo = extractTimeFromDescription(task.description);
+    if (timeInfo) {
+      tasksWithTimes.push({ task, time: timeInfo });
+    } else {
+      flexibleTasks.push(task);
+    }
+  });
+  
+  // Sort tasks with specific times
+  tasksWithTimes.sort((a, b) => {
+    if (a.time.hour !== b.time.hour) {
+      return a.time.hour - b.time.hour;
+    }
+    return a.time.minute - b.time.minute;
+  });
+  
+  // Schedule tasks with specific times first
+  const scheduledTasks: ScheduledTask[] = tasksWithTimes.map(({ task, time }) => {
+    // Estimate duration based on description
+    let durationMinutes = 30;
+    let durationText = "30 minutes";
+    
+    if (task.description.toLowerCase().includes("meeting") || 
+        task.description.toLowerCase().includes("appointment")) {
+      durationMinutes = 60;
+      durationText = "1 hour";
+    } else if (task.description.toLowerCase().includes("lunch") || 
+              task.description.toLowerCase().includes("dinner")) {
+      durationMinutes = 45;
+      durationText = "45 minutes";
+    }
+    
+    return {
+      ...task,
+      startTime: time.time,
+      duration: durationText
+    };
+  });
+  
+  // Now schedule flexible tasks around fixed tasks
+  // Start at 8 AM if there's room before first fixed task, or after the last fixed task
   let currentHour = 8;
   let currentMinute = 0;
   
-  const scheduledTasks: ScheduledTask[] = tasks.map(task => {
-    // Format time as "8:00 AM", "9:30 AM", etc.
+  if (tasksWithTimes.length > 0) {
+    // Check if we can schedule before the first fixed task
+    const firstFixedTask = tasksWithTimes[0];
+    if (firstFixedTask.time.hour > 9) { // If first task is after 9 AM, we can schedule some flex tasks before
+      currentHour = 8;
+      currentMinute = 0;
+    } else {
+      // Start after the last fixed task
+      const lastFixedTask = tasksWithTimes[tasksWithTimes.length - 1];
+      currentHour = lastFixedTask.time.hour;
+      currentMinute = lastFixedTask.time.minute + 60; // Add 1 hour (typical duration)
+      
+      // Adjust hour if minutes overflow
+      while (currentMinute >= 60) {
+        currentHour++;
+        currentMinute -= 60;
+      }
+    }
+  }
+  
+  for (const task of flexibleTasks) {
+    // Format time
     const period = currentHour >= 12 ? 'PM' : 'AM';
-    const hour = currentHour > 12 ? currentHour - 12 : currentHour;
+    const hour = currentHour > 12 ? currentHour - 12 : (currentHour === 0 ? 12 : currentHour);
     const minute = currentMinute.toString().padStart(2, '0');
     const startTime = `${hour}:${minute} ${period}`;
     
@@ -38,70 +128,54 @@ const generateMockSchedule = async (tasks: Task[]): Promise<ScheduleResult> => {
     let durationMinutes = 30; // Default duration
     let durationText = "30 minutes";
     
-    if (task.description.includes("minute")) {
-      const match = task.description.match(/(\d+)[- ]minute/);
-      if (match && match[1]) {
-        durationMinutes = parseInt(match[1]);
-        durationText = `${durationMinutes} minutes`;
-      }
-    } else if (task.description.includes("hour")) {
-      const match = task.description.match(/(\d+)[- ]hour/);
-      if (match && match[1]) {
-        durationMinutes = parseInt(match[1]) * 60;
-        durationText = `${match[1]} hour${parseInt(match[1]) > 1 ? 's' : ''}`;
-      }
-    } else if (task.description.toLowerCase().includes("meeting")) {
+    if (task.description.toLowerCase().includes("meeting") || 
+        task.description.toLowerCase().includes("appointment")) {
       durationMinutes = 60;
       durationText = "1 hour";
     } else if (task.description.toLowerCase().includes("lunch") || 
               task.description.toLowerCase().includes("dinner")) {
       durationMinutes = 45;
       durationText = "45 minutes";
-    } else if (task.description.toLowerCase().includes("appointment")) {
-      durationMinutes = 60;
-      durationText = "1 hour";
     }
     
-    // Extract specific time if mentioned in the task
-    // Check for patterns like "at 2 PM" or "from 10-11 AM"
-    let specificTimeFound = false;
-    
-    const atTimeRegex = /at (\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)/;
-    const atTimeMatch = task.description.match(atTimeRegex);
-    
-    if (atTimeMatch) {
-      const hour = parseInt(atTimeMatch[1]);
-      const minute = atTimeMatch[2] ? parseInt(atTimeMatch[2]) : 0;
-      const period = atTimeMatch[3].toUpperCase();
-      
-      currentHour = period === "PM" && hour < 12 ? hour + 12 : hour;
-      currentHour = period === "AM" && hour === 12 ? 0 : currentHour;
-      currentMinute = minute;
-      specificTimeFound = true;
-    }
-    
-    // Move time forward for next task if no specific time was mentioned
-    if (!specificTimeFound) {
-      // Add task duration plus a 15-minute buffer
-      currentMinute += durationMinutes + 15;
-      while (currentMinute >= 60) {
-        currentHour++;
-        currentMinute -= 60;
-      }
-      
-      // Adjust for lunch and dinner times
-      if (currentHour === 12 && currentMinute === 0 && !task.description.toLowerCase().includes("lunch")) {
-        // It's noon, move to 1 PM if this isn't lunch
-        currentHour = 13;
-        currentMinute = 0;
-      }
-    }
-    
-    return {
+    scheduledTasks.push({
       ...task,
       startTime,
       duration: durationText
-    };
+    });
+    
+    // Move time forward for next task
+    currentMinute += durationMinutes + 15; // Add task duration plus a 15-minute buffer
+    while (currentMinute >= 60) {
+      currentHour++;
+      currentMinute -= 60;
+    }
+  }
+  
+  // Sort all scheduled tasks by time for final output
+  scheduledTasks.sort((a, b) => {
+    const timeA = a.startTime.match(/(\d+):(\d+) (AM|PM)/);
+    const timeB = b.startTime.match(/(\d+):(\d+) (AM|PM)/);
+    
+    if (!timeA || !timeB) return 0;
+    
+    let hourA = parseInt(timeA[1]);
+    let hourB = parseInt(timeB[1]);
+    
+    // Convert to 24-hour format for comparison
+    if (timeA[3] === 'PM' && hourA !== 12) hourA += 12;
+    if (timeB[3] === 'PM' && hourB !== 12) hourB += 12;
+    if (timeA[3] === 'AM' && hourA === 12) hourA = 0;
+    if (timeB[3] === 'AM' && hourB === 12) hourB = 0;
+    
+    if (hourA !== hourB) {
+      return hourA - hourB;
+    }
+    
+    // If hours are the same, compare minutes
+    const minuteA = parseInt(timeA[2]);
+    const minuteB = parseInt(timeB[2]);
+    return minuteA - minuteB;
   });
   
   // Generate explanation
@@ -131,16 +205,6 @@ const generateExplanation = (scheduledTasks: ScheduledTask[], originalTasks: Tas
   
   if (hasMealtimes) {
     explanation += "Meal times were prioritized in their typical time slots. ";
-  }
-  
-  const hasExercise = scheduledTasks.some(task => 
-    task.description.toLowerCase().includes("workout") || 
-    task.description.toLowerCase().includes("exercise") ||
-    task.description.toLowerCase().includes("run")
-  );
-  
-  if (hasExercise) {
-    explanation += "I've allowed some buffer time after physical activities. ";
   }
   
   const hasSchoolRelated = scheduledTasks.some(task => 
