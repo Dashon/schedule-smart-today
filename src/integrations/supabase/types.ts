@@ -239,6 +239,33 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_tasks: {
+        Row: {
+          created_at: string
+          description: string
+          duration: string
+          id: string
+          start_time: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          duration: string
+          id?: string
+          start_time: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          duration?: string
+          id?: string
+          start_time?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       swipes: {
         Row: {
           action: string

@@ -1,7 +1,7 @@
-
 import { Task } from '../components/TaskList';
 import { ScheduledTask } from '../components/Timeline';
-import { generateScheduleWithOpenAI, delay } from './openaiService';
+import { delay } from './openaiService';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ScheduleResult {
   scheduledTasks: ScheduledTask[];
@@ -10,9 +10,26 @@ export interface ScheduleResult {
 
 export const generateSchedule = async (tasks: Task[]): Promise<ScheduleResult> => {
   try {
-    return await generateScheduleWithOpenAI(tasks);
+    // Call the Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('generate-schedule', {
+      body: { tasks }
+    });
+
+    if (error) {
+      console.error("Supabase function error:", error);
+      throw new Error(error.message);
+    }
+
+    // Return the result from the Edge Function
+    return {
+      scheduledTasks: data.scheduledTasks.map(task => ({
+        ...task,
+        id: task.id || String(Math.random()) // Ensure ID exists
+      })),
+      explanation: data.explanation
+    };
   } catch (error) {
-    console.warn("Failed to use OpenAI API, falling back to mock implementation:", error);
+    console.warn("Failed to use Edge Function, falling back to mock implementation:", error);
     return generateMockSchedule(tasks);
   }
 };
@@ -87,7 +104,7 @@ const extractTimeFromDescription = (description: string): {time: string, hour: n
   return null;
 }
 
-// Fallback mock implementation in case the OpenAI API call fails
+// Fallback mock implementation in case the Edge Function call fails
 const generateMockSchedule = async (tasks: Task[]): Promise<ScheduleResult> => {
   // Simulate API call delay
   await delay(2000);
