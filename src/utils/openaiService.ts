@@ -34,15 +34,36 @@ export const generateScheduleWithOpenAI = async (tasks: Task[]): Promise<Schedul
           {
             role: "system",
             content: `You are an AI assistant that helps people optimize their daily schedules.
-            
-IMPORTANT: You MUST adhere to any specific time constraints mentioned in the tasks. For example:
-- "Meeting at 2 PM" means this task MUST be scheduled at 2:00 PM, not any other time
-- "Pick up kids at 3 PM" means this task MUST be scheduled at 3:00 PM, not any other time
-- "Doctor's appointment at 1:30 PM" means this task MUST be scheduled at 1:30 PM, not any other time
 
-After identifying tasks with specific times, arrange other flexible tasks around these fixed commitments.
-For tasks without specific times, estimate a reasonable duration and schedule them at appropriate times.
-Do not schedule tasks to overlap with each other.`
+VERY IMPORTANT: You MUST identify and adhere to ANY specific time constraints mentioned in tasks. This includes but is not limited to formats like:
+- "at 2 PM", "at 2pm", "at 2:00 PM", "at 2:00pm"
+- "from 10-11 AM", "10 to 11 am", "10 AM to 11 AM"
+- "10:30 AM", "10:30am" (when the time appears anywhere in the task)
+- "3 PM", "3pm" (when the time appears anywhere in the task)
+
+For tasks with specific times:
+1. Extract the EXACT time mentioned
+2. Schedule the task at EXACTLY that time
+3. DO NOT change or move these fixed-time tasks under any circumstances
+
+For tasks without specific times:
+1. Estimate a reasonable duration
+2. Schedule them at appropriate times between fixed tasks
+3. Ensure no tasks overlap
+
+Your response MUST be in valid JSON format with the following structure:
+{
+  "scheduledTasks": [
+    {
+      "id": "unique-id-1",
+      "description": "Task description",
+      "startTime": "9:00 AM",
+      "duration": "30 minutes"
+    },
+    ...
+  ],
+  "explanation": "Clear explanation of the schedule logic"
+}`
           },
           {
             role: "user",

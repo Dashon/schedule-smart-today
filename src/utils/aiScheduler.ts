@@ -17,10 +17,12 @@ export const generateSchedule = async (tasks: Task[]): Promise<ScheduleResult> =
   }
 };
 
-// Helper function to extract time from task description
+// Helper function to extract time from task description - improved version
 const extractTimeFromDescription = (description: string): {time: string, hour: number, minute: number} | null => {
-  // Check for patterns like "at 2 PM", "at 3:30 PM", etc.
-  const atTimeRegex = /at (\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)/i;
+  // Check for various time patterns
+  
+  // Pattern: "at X:XX AM/PM" or "at X AM/PM"
+  const atTimeRegex = /at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)/i;
   const atTimeMatch = description.match(atTimeRegex);
   
   if (atTimeMatch) {
@@ -28,7 +30,49 @@ const extractTimeFromDescription = (description: string): {time: string, hour: n
     const minute = atTimeMatch[2] ? parseInt(atTimeMatch[2]) : 0;
     const period = atTimeMatch[3].toUpperCase();
     
-    const hourIn24 = period === "PM" && hour < 12 ? hour + 12 : hour;
+    const hourIn24 = period === "PM" && hour < 12 ? hour + 12 : (period === "AM" && hour === 12 ? 0 : hour);
+    const hourIn12 = hourIn24 > 12 ? hourIn24 - 12 : (hourIn24 === 0 ? 12 : hourIn24);
+    const formattedMinute = minute.toString().padStart(2, '0');
+    const formattedTime = `${hourIn12}:${formattedMinute} ${period}`;
+    
+    return {
+      time: formattedTime,
+      hour: hourIn24,
+      minute: minute
+    };
+  }
+  
+  // Pattern: "from X-Y AM/PM" or "X to Y AM/PM"
+  const rangeTimeRegex = /(?:from|between)?\s*(\d{1,2})(?::(\d{2}))?\s*(?:-|to|–)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)/i;
+  const rangeTimeMatch = description.match(rangeTimeRegex);
+  
+  if (rangeTimeMatch) {
+    const startHour = parseInt(rangeTimeMatch[1]);
+    const startMinute = rangeTimeMatch[2] ? parseInt(rangeTimeMatch[2]) : 0;
+    const period = rangeTimeMatch[5].toUpperCase();
+    
+    const startHourIn24 = period === "PM" && startHour < 12 ? startHour + 12 : (period === "AM" && startHour === 12 ? 0 : startHour);
+    const startHourIn12 = startHourIn24 > 12 ? startHourIn24 - 12 : (startHourIn24 === 0 ? 12 : startHourIn24);
+    const formattedStartMinute = startMinute.toString().padStart(2, '0');
+    const formattedTime = `${startHourIn12}:${formattedStartMinute} ${period}`;
+    
+    return {
+      time: formattedTime,
+      hour: startHourIn24,
+      minute: startMinute
+    };
+  }
+  
+  // Pattern: standalone "X:XX AM/PM" or "X AM/PM" anywhere in the text
+  const standaloneTimeRegex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)\b/i;
+  const standaloneTimeMatch = description.match(standaloneTimeRegex);
+  
+  if (standaloneTimeMatch) {
+    const hour = parseInt(standaloneTimeMatch[1]);
+    const minute = standaloneTimeMatch[2] ? parseInt(standaloneTimeMatch[2]) : 0;
+    const period = standaloneTimeMatch[3].toUpperCase();
+    
+    const hourIn24 = period === "PM" && hour < 12 ? hour + 12 : (period === "AM" && hour === 12 ? 0 : hour);
     const hourIn12 = hourIn24 > 12 ? hourIn24 - 12 : (hourIn24 === 0 ? 12 : hourIn24);
     const formattedMinute = minute.toString().padStart(2, '0');
     const formattedTime = `${hourIn12}:${formattedMinute} ${period}`;
@@ -55,6 +99,7 @@ const generateMockSchedule = async (tasks: Task[]): Promise<ScheduleResult> => {
   tasks.forEach(task => {
     const timeInfo = extractTimeFromDescription(task.description);
     if (timeInfo) {
+      console.log(`Detected time in task "${task.description}": ${timeInfo.time}`);
       tasksWithTimes.push({ task, time: timeInfo });
     } else {
       flexibleTasks.push(task);
@@ -192,7 +237,9 @@ const generateExplanation = (scheduledTasks: ScheduledTask[], originalTasks: Tas
   
   // Look for patterns and add explanations
   const hasTimeSpecificTasks = scheduledTasks.some(task => 
-    task.description.match(/at \d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)/)
+    task.description.match(/at \d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)/) ||
+    task.description.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)\b/) ||
+    task.description.match(/from \d{1,2}(?::\d{2})?\s*(?:-|to)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)/)
   );
   
   if (hasTimeSpecificTasks) {

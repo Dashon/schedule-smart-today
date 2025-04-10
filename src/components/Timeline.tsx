@@ -39,7 +39,7 @@ const Timeline = ({ tasks }: TimelineProps) => {
                   )}
                 </div>
                 <div className="flex-none ml-4">
-                  <span className="text-sm bg-blue-100 px-4 py-2 rounded-full font-medium text-blue-800">
+                  <span className="text-md bg-blue-100 px-5 py-2 rounded-full font-medium text-blue-800">
                     {task.startTime}
                   </span>
                 </div>
